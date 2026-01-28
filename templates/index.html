@@ -2,18 +2,117 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gestion des Stocks - Projet</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Stocks</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f8f9fa; }
-        h1 { color: #333; text-align: center; }
-        .container { max-width: 800px; margin: 0 auto; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f6f9;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .form-add {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .delete-btn {
+            background: #f44336;
+        }
+        .delete-btn:hover {
+            background: #da190b;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #2196F3;
+            color: white;
+        }
+        tr:hover {
+            background: #f1f1f1;
+        }
+        .search-container {
+            margin: 20px 0;
+        }
+        #search {
+            width: 300px;
+            padding: 10px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Bienvenue dans la Gestion des Stocks</h1>
-        <p>Le backend Flask fonctionne correctement. On va maintenant ajouter la liste des produits et le formulaire d'ajout.</p>
-        <p>Prochaine étape : base de données et CRUD.</p>
+        <h1>Gestion des Stocks</h1>
+
+        <!-- Formulaire d'ajout -->
+        <div class="form-add">
+            <h3>Ajouter un produit</h3>
+            <input type="text" id="nom" placeholder="Nom du produit" required>
+            <input type="number" id="quantite" placeholder="Quantité" min="0" required>
+            <button onclick="addProduit()">Ajouter</button>
+            <span id="add-message" class="error"></span>
+        </div>
+
+        <!-- Recherche -->
+        <div class="search-container">
+            <input type="text" id="search" placeholder="Rechercher un produit..." oninput="rechercher()">
+        </div>
+
+        <!-- Tableau des produits -->
+        <table id="table-produits">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nom</th>
+                    <th>Quantité</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+
+        <p id="loading" style="text-align:center; display:none;">Chargement...</p>
     </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    
 </body>
 </html>
