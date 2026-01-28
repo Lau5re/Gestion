@@ -2,18 +2,32 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gestion des Stocks - Projet</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f8f9fa; }
-        h1 { color: #333; text-align: center; }
-        .container { max-width: 800px; margin: 0 auto; }
-    </style>
+    <title>Gestion des stocks</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Bienvenue dans la Gestion des Stocks</h1>
-        <p>Le backend Flask fonctionne correctement. On va maintenant ajouter la liste des produits et le formulaire d'ajout.</p>
-        <p>Prochaine étape : base de données et CRUD.</p>
-    </div>
+
+<h1>Gestion des stocks</h1>
+
+<form id="form-produit">
+    <input type="text" id="nom" placeholder="Nom du produit" required>
+    <input type="number" id="quantite" placeholder="Quantité" required>
+    <button type="submit">Ajouter</button>
+</form>
+
+<table>
+    <thead>
+        <tr>
+            <th>Produit</th>
+            <th>Quantité</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="liste-produits">
+        <!-- Les produits seront ajoutés ici -->
+    </tbody>
+</table>
+
+<script src="/static/script.js"></script>
 </body>
 </html>
