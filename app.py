@@ -5,12 +5,17 @@ from bisect import bisect_left
 
 app = Flask(__name__)
 
-# Verrou pour gérer les mises à jour concurrentes (comme dans l'étude de cas)
+# Verrou pour gérer les mises à jour concurrentes
 lock = threading.Lock()
 
-# Fonction pour initialiser la base de données (exécutée une seule fois)
+# Cache pour recherche optimisée (O(log n) au lieu de O(n))
+produits_tries_cache = []
+noms_tries_cache = []
+cache_valide = False  # True = cache à jour, False = besoin rafraîchir
+
 def init_db():
-    conn = sqlite3.connect('stock.db')  # Crée le fichier stock.db dans le dossier projet
+    """Crée la table produits si elle n'existe pas"""
+    conn = sqlite3.connect('stock.db')
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS produits (
@@ -21,18 +26,18 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print("Base de données initialisée (ou déjà existante)")
 
-# Appel à l'initialisation au démarrage
 init_db()
 
 @app.route('/')
 def accueil():
     return render_template('index.html')
 
-# Endpoint pour lister tous les produits (JSON)
 @app.route('/produits', methods=['GET'])
 def get_produits():
+    """Retourne tous les produits et met à jour le cache"""
+    global produits_tries_cache, noms_tries_cache, cache_valide
+    
     conn = sqlite3.connect('stock.db')
     c = conn.cursor()
     c.execute("SELECT id, nom, quantite FROM produits")
@@ -40,11 +45,19 @@ def get_produits():
     conn.close()
     
     produits = [{"id": row[0], "nom": row[1], "quantite": row[2]} for row in rows]
+    
+    # Mise à jour du cache trié pour recherche binaire
+    produits_tries_cache = sorted(produits, key=lambda x: x['nom'].lower())
+    noms_tries_cache = [p['nom'].lower() for p in produits_tries_cache]
+    cache_valide = True
+    
     return jsonify(produits)
 
-# Endpoint pour ajouter un produit
 @app.route('/produits', methods=['POST'])
 def add_produit():
+    """Ajoute un produit et invalide le cache"""
+    global cache_valide
+    
     data = request.json
     nom = data.get('nom')
     quantite = int(data.get('quantite', 0))
@@ -58,17 +71,22 @@ def add_produit():
     conn.commit()
     conn.close()
     
+    cache_valide = False  # Cache invalide car nouveau produit
+    
     return jsonify({"message": "Produit ajouté"}), 201
 
-# Endpoint pour mettre à jour la quantité (avec verrouillage pour éviter les problèmes concurrents)
 @app.route('/produits/<int:id>', methods=['PUT'])
 def update_quantite(id):
+    """Met à jour la quantité avec verrouillage concurrentiel"""
+    global cache_valide
+    
     data = request.json
     delta = int(data.get('delta', 0))
-
+    
     if delta == 0:
         return jsonify({"error": "Delta requis et non nul"}), 400
-
+    
+    # Verrouillage pessimiste : un seul thread peut modifier à la fois
     with lock:
         conn = sqlite3.connect('stock.db')
         c = conn.cursor()
@@ -90,10 +108,15 @@ def update_quantite(id):
         conn.commit()
         conn.close()
     
+    cache_valide = False  # Cache invalide car quantité modifiée
+    
     return jsonify({"message": f"Quantité mise à jour : {nouvelle_quantite}"}), 200
 
 @app.route('/produits/<int:id>', methods=['DELETE'])
 def delete_produit(id):
+    """Supprime un produit et invalide le cache"""
+    global cache_valide
+    
     conn = sqlite3.connect('stock.db')
     c = conn.cursor()
     c.execute("DELETE FROM produits WHERE id = ?", (id,))
@@ -102,34 +125,53 @@ def delete_produit(id):
         return jsonify({"error": "Produit non trouvé"}), 404
     conn.commit()
     conn.close()
+    
+    cache_valide = False  # Cache invalide car produit supprimé
+    
     return jsonify({"message": "Produit supprimé"}), 200
-
 
 @app.route('/recherche', methods=['GET'])
 def recherche():
+    """RECHERCHE OPTIMISÉE avec algorithme de recherche binaire (bisect)"""
+    global produits_tries_cache, noms_tries_cache, cache_valide
+    
     nom_recherche = request.args.get('nom', '').strip().lower()
+    
     if not nom_recherche:
         return jsonify([])
-
-    conn = sqlite3.connect('stock.db')
-    c = conn.cursor()
-    c.execute("SELECT id, nom, quantite FROM produits ORDER BY nom")
-    produits = c.fetchall()
-    conn.close()
-
-    # Liste triée par nom (déjà triée par SQL)
-    noms = [p[1].lower() for p in produits]
-
-    # Recherche binaire avec bisect
-    index = bisect_left(noms, nom_recherche)
+    
+    # Si cache pas valide, le mettre à jour
+    if not cache_valide:
+        conn = sqlite3.connect('stock.db')
+        c = conn.cursor()
+        c.execute("SELECT id, nom, quantite FROM produits")
+        rows = c.fetchall()
+        conn.close()
+        
+        produits = [{"id": row[0], "nom": row[1], "quantite": row[2]} for row in rows]
+        produits_tries_cache = sorted(produits, key=lambda x: x['nom'].lower())
+        noms_tries_cache = [p['nom'].lower() for p in produits_tries_cache]
+        cache_valide = True
+    
+    if not produits_tries_cache:
+        return jsonify([])
+    
+    # RECHERCHE BINAIRE : O(log n) au lieu de O(n)
+    index = bisect_left(noms_tries_cache, nom_recherche)
     resultats = []
-    while index < len(noms) and noms[index].startswith(nom_recherche):
-        p = produits[index]
-        resultats.append({"id": p[0], "nom": p[1], "quantite": p[2]})
+    
+    # Chercher vers l'avant (à partir de la position trouvée)
+    while index < len(noms_tries_cache) and noms_tries_cache[index].startswith(nom_recherche):
+        resultats.append(produits_tries_cache[index])
         index += 1
-
+    
+    # Chercher vers l'arrière (au cas où plusieurs produits au même préfixe)
+    index_before = index - 1
+    while index_before >= 0 and noms_tries_cache[index_before].startswith(nom_recherche):
+        resultats.insert(0, produits_tries_cache[index_before])
+        index_before -= 1
+    
     return jsonify(resultats)
 
 if __name__ == '__main__':
     app.run(debug=True)
-
