@@ -157,19 +157,15 @@ def recherche():
         return jsonify([])
     
     # RECHERCHE BINAIRE : O(log n) au lieu de O(n)
-    index = bisect_left(noms_tries_cache, nom_recherche)
+    # bisect_left donne le premier index où le préfixe pourrait être inséré
+    index_depart = bisect_left(noms_tries_cache, nom_recherche)
     resultats = []
     
-    # Chercher vers l'avant (à partir de la position trouvée)
+    # On parcourt uniquement vers l'avant à partir du premier match trouvé par bisect_left
+    index = index_depart
     while index < len(noms_tries_cache) and noms_tries_cache[index].startswith(nom_recherche):
         resultats.append(produits_tries_cache[index])
         index += 1
-    
-    # Chercher vers l'arrière (au cas où plusieurs produits au même préfixe)
-    index_before = index - 1
-    while index_before >= 0 and noms_tries_cache[index_before].startswith(nom_recherche):
-        resultats.insert(0, produits_tries_cache[index_before])
-        index_before -= 1
     
     return jsonify(resultats)
 
