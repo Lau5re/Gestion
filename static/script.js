@@ -2,6 +2,8 @@
 
 const API_BASE = ''; 
 
+let derniereRecherche = '';  // chaîne vide = "tout afficher"
+
 // Charger les données au démarrage
 window.onload = () => {
     chargerCategories();
@@ -75,7 +77,7 @@ function afficherProduits(produits) {
                             class="w-16 bg-transparent text-center text-sm font-medium outline-none border-none focus:ring-0">
                         <button onclick="appliquerDelta(${p.id})" 
                             class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white p-1.5 rounded-md shadow-sm transition-all text-xs font-bold">
-                            OK
+                            VALIDER
                         </button>
                     </div>
                     <button onclick="supprimerProduit(${p.id})" 
@@ -87,6 +89,27 @@ function afficherProduits(produits) {
         `;
         tbody.appendChild(tr);
     });
+}
+
+async function rechargerListe() {
+    // On remet le texte de recherche dans l'input (pour que l'utilisateur voie toujours ce qu'il cherchait)
+    document.getElementById('search').value = derniereRecherche;
+
+    if (derniereRecherche) {
+        // On refait exactement la même recherche
+        try {
+            const res = await fetch(`${API_BASE}/recherche?nom=${encodeURIComponent(derniereRecherche)}`);
+            if (!res.ok) throw new Error('Erreur rechargement recherche');
+            const resultats = await res.json();
+            afficherProduits(resultats);
+        } catch (err) {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500">${err.message}</td></tr>`;
+        }
+    } else {
+        // Pas de recherche active → on recharge la liste complète
+        chargerProduits();
+    }
 }
 
 async function appliquerDelta(id) {
@@ -109,7 +132,7 @@ async function appliquerDelta(id) {
         }
 
         input.value = '';
-        chargerProduits();
+        rechargerListe();  // ← Ici on utilise la fonction intelligente
     } catch (err) {
         alert('Erreur réseau : ' + err.message);
     }
@@ -145,7 +168,7 @@ async function addProduit() {
         messageEl.textContent = '';
         nomInput.value = '';
         qteInput.value = '';
-        chargerProduits();
+        rechargerListe();  // ← Changé ici aussi
         
         const btn = document.querySelector('button[onclick="addProduit()"]');
         const originalContent = btn.innerHTML;
@@ -168,7 +191,7 @@ async function supprimerProduit(id) {
             method: 'DELETE'
         });
         if (!res.ok) throw new Error('Erreur de suppression');
-        chargerProduits();
+        rechargerListe();  // ← Changé ici aussi
     } catch (err) {
         alert('Erreur : ' + err.message);
     }
@@ -176,8 +199,10 @@ async function supprimerProduit(id) {
 
 async function rechercher() {
     const query = document.getElementById('search').value.trim();
+    derniereRecherche = query;  // on mémorise ce qu’on cherche
+
     if (!query) {
-        chargerProduits();
+        chargerProduits();  // recherche vide → on montre tout
         return;
     }
 
