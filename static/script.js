@@ -1,10 +1,24 @@
 // static/script.js
 
-// Utilisation de l'URL relative pour plus de flexibilité
 const API_BASE = ''; 
 
-// Charger la liste au démarrage
-window.onload = () => chargerProduits();
+// Charger les données au démarrage
+window.onload = () => {
+    chargerCategories();
+    chargerProduits();
+};
+
+async function chargerCategories() {
+    try {
+        const res = await fetch(`${API_BASE}/categories`);
+        if (!res.ok) throw new Error('Erreur de chargement des catégories');
+        const categories = await res.json();
+        const select = document.getElementById('categorie');
+        select.innerHTML = categories.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+    } catch (err) {
+        console.error(err);
+    }
+}
 
 async function chargerProduits() {
     const loading = document.getElementById('loading');
@@ -17,7 +31,7 @@ async function chargerProduits() {
         const produits = await res.json();
         afficherProduits(produits);
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500 font-medium bg-red-50"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur : ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500 font-medium bg-red-50"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur : ${err.message}</td></tr>`;
     } finally {
         loading.classList.add('hidden');
     }
@@ -28,7 +42,7 @@ function afficherProduits(produits) {
     tbody.innerHTML = '';
     
     if (produits.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Aucun produit trouvé dans l'inventaire.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">Aucun produit trouvé dans l'inventaire.</td></tr>`;
         return;
     }
 
@@ -36,14 +50,18 @@ function afficherProduits(produits) {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition-colors group";
         
-        // Couleur de badge selon la quantité
-        const badgeColor = p.quantite <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+        let badgeColor = p.quantite <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
         if (p.quantite === 0) badgeColor = 'bg-red-100 text-red-700';
 
         tr.innerHTML = `
             <td class="px-6 py-4 text-sm text-slate-500 font-mono">#${p.id}</td>
             <td class="px-6 py-4">
                 <div class="font-semibold text-slate-800">${p.nom}</div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    ${p.categorie || 'Sans catégorie'}
+                </span>
             </td>
             <td class="px-6 py-4">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor}">
@@ -100,8 +118,11 @@ async function appliquerDelta(id) {
 async function addProduit() {
     const nomInput = document.getElementById('nom');
     const qteInput = document.getElementById('quantite');
+    const catSelect = document.getElementById('categorie');
+    
     const nom = nomInput.value.trim();
     const quantite = parseInt(qteInput.value);
+    const categorie_id = parseInt(catSelect.value);
     const messageEl = document.getElementById('add-message');
 
     if (!nom || isNaN(quantite) || quantite < 0) {
@@ -113,7 +134,7 @@ async function addProduit() {
         const res = await fetch(`${API_BASE}/produits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nom, quantite })
+            body: JSON.stringify({ nom, quantite, categorie_id })
         });
         
         if (!res.ok) {
@@ -126,7 +147,6 @@ async function addProduit() {
         qteInput.value = '';
         chargerProduits();
         
-        // Petit feedback visuel de succès
         const btn = document.querySelector('button[onclick="addProduit()"]');
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-check"></i> <span>Ajouté !</span>';
@@ -168,6 +188,6 @@ async function rechercher() {
         afficherProduits(resultats);
     } catch (err) {
         const tbody = document.getElementById('tbody');
-        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500">${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500">${err.message}</td></tr>`;
     }
 }
