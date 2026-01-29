@@ -1,37 +1,70 @@
 // static/script.js
 
-const API_BASE = 'http://127.0.0.1:5000';
+// Utilisation de l'URL relative pour plus de flexibilité
+const API_BASE = ''; 
 
 // Charger la liste au démarrage
 window.onload = () => chargerProduits();
 
 async function chargerProduits() {
-    document.getElementById('loading').style.display = 'block';
+    const loading = document.getElementById('loading');
+    const tbody = document.getElementById('tbody');
+    
+    loading.classList.remove('hidden');
     try {
         const res = await fetch(`${API_BASE}/produits`);
-        if (!res.ok) throw new Error('Erreur chargement');
+        if (!res.ok) throw new Error('Erreur de chargement');
         const produits = await res.json();
         afficherProduits(produits);
     } catch (err) {
-        document.getElementById('tbody').innerHTML = `<tr><td colspan="4" class="error">Erreur : ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500 font-medium bg-red-50"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur : ${err.message}</td></tr>`;
     } finally {
-        document.getElementById('loading').style.display = 'none';
+        loading.classList.add('hidden');
     }
 }
 
 function afficherProduits(produits) {
     const tbody = document.getElementById('tbody');
     tbody.innerHTML = '';
+    
+    if (produits.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Aucun produit trouvé dans l'inventaire.</td></tr>`;
+        return;
+    }
+
     produits.forEach(p => {
         const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors group";
+        
+        // Couleur de badge selon la quantité
+        const badgeColor = p.quantite <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+        if (p.quantite === 0) badgeColor = 'bg-red-100 text-red-700';
+
         tr.innerHTML = `
-            <td>${p.id}</td>
-            <td>${p.nom}</td>
-            <td>${p.quantite}</td>
-            <td style="white-space: nowrap;">
-                <input type="number" id="delta-${p.id}" placeholder="Δ" min="-${p.quantite}" step="1" style="width: 80px; text-align: center;">
-                <button onclick="appliquerDelta(${p.id})" style="background:#2196F3; margin-left: 8px;">Mettre à jour</button>
-                <button class="delete-btn" onclick="supprimerProduit(${p.id})" style="margin-left: 8px;">Supprimer</button>
+            <td class="px-6 py-4 text-sm text-slate-500 font-mono">#${p.id}</td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-slate-800">${p.nom}</div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor}">
+                    ${p.quantite} en stock
+                </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+                <div class="flex items-center justify-end space-x-3">
+                    <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                        <input type="number" id="delta-${p.id}" placeholder="±" step="1" 
+                            class="w-16 bg-transparent text-center text-sm font-medium outline-none border-none focus:ring-0">
+                        <button onclick="appliquerDelta(${p.id})" 
+                            class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white p-1.5 rounded-md shadow-sm transition-all text-xs font-bold">
+                            OK
+                        </button>
+                    </div>
+                    <button onclick="supprimerProduit(${p.id})" 
+                        class="text-slate-400 hover:text-red-600 transition-colors p-2" title="Supprimer">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
@@ -42,12 +75,7 @@ async function appliquerDelta(id) {
     const input = document.getElementById(`delta-${id}`);
     const delta = parseInt(input.value);
 
-    if (isNaN(delta) || delta === 0) {
-        alert("Entrez une quantité valide (différente de 0)");
-        return;
-    }
-
-    if (!confirm(`Appliquer un changement de ${delta} à ce produit ?`)) return;
+    if (isNaN(delta) || delta === 0) return;
 
     try {
         const res = await fetch(`${API_BASE}/produits/${id}`, {
@@ -62,7 +90,6 @@ async function appliquerDelta(id) {
             return;
         }
 
-        // Succès
         input.value = '';
         chargerProduits();
     } catch (err) {
@@ -71,39 +98,56 @@ async function appliquerDelta(id) {
 }
 
 async function addProduit() {
-    const nom = document.getElementById('nom').value.trim();
-    const quantite = parseInt(document.getElementById('quantite').value);
+    const nomInput = document.getElementById('nom');
+    const qteInput = document.getElementById('quantite');
+    const nom = nomInput.value.trim();
+    const quantite = parseInt(qteInput.value);
     const messageEl = document.getElementById('add-message');
 
     if (!nom || isNaN(quantite) || quantite < 0) {
-        messageEl.textContent = 'Nom et quantité positive requis !';
+        messageEl.textContent = 'Veuillez remplir tous les champs correctement.';
         return;
     }
     
-
     try {
         const res = await fetch(`${API_BASE}/produits`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ nom, quantite })
         });
-        if (!res.ok) throw new Error(await res.text());
+        
+        if (!res.ok) {
+            const errorText = await res.json();
+            throw new Error(errorText.error || 'Erreur lors de l\'ajout');
+        }
+        
         messageEl.textContent = '';
-        document.getElementById('nom').value = '';
-        document.getElementById('quantite').value = '';
+        nomInput.value = '';
+        qteInput.value = '';
         chargerProduits();
+        
+        // Petit feedback visuel de succès
+        const btn = document.querySelector('button[onclick="addProduit()"]');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> <span>Ajouté !</span>';
+        btn.classList.replace('bg-indigo-600', 'bg-emerald-500');
+        setTimeout(() => {
+            btn.innerHTML = originalContent;
+            btn.classList.replace('bg-emerald-500', 'bg-indigo-600');
+        }, 2000);
+
     } catch (err) {
         messageEl.textContent = err.message;
     }
 }
 
 async function supprimerProduit(id) {
-    if (!confirm('Supprimer ce produit ?')) return;
+    if (!confirm('Voulez-vous vraiment supprimer ce produit de l\'inventaire ?')) return;
     try {
         const res = await fetch(`${API_BASE}/produits/${id}`, {
             method: 'DELETE'
         });
-        if (!res.ok) throw new Error('Erreur suppression');
+        if (!res.ok) throw new Error('Erreur de suppression');
         chargerProduits();
     } catch (err) {
         alert('Erreur : ' + err.message);
@@ -119,10 +163,11 @@ async function rechercher() {
 
     try {
         const res = await fetch(`${API_BASE}/recherche?nom=${encodeURIComponent(query)}`);
-        if (!res.ok) throw new Error('Erreur recherche');
+        if (!res.ok) throw new Error('Erreur de recherche');
         const resultats = await res.json();
         afficherProduits(resultats);
     } catch (err) {
-        document.getElementById('tbody').innerHTML = `<tr><td colspan="4" class="error">${err.message}</td></tr>`;
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-red-500">${err.message}</td></tr>`;
     }
 }
